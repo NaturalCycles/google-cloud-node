@@ -1,6 +1,6 @@
 {
-  "name": "@google-cloud/logging-winston",
-  "version": "0.6.0",
+  "name": "@naturalcycles/google-cloud-logging-winston",
+  "version": "0.6.6",
   "author": "Google Inc.",
   "description": "Stackdriver Logging transport for Winston",
   "main": "./src/index.js",
@@ -29,7 +29,8 @@
   ],
   "dependencies": {
     "@google-cloud/common": "^0.13.0",
-    "@google-cloud/logging": "^1.0.0",
+    "@google-cloud/logging": "1.0.6",
+    "@naturalcycles/google-proto-files": "^0.13.3",
     "extend": "^3.0.0",
     "is": "^3.2.0",
     "lodash.mapvalues": "^4.6.0"

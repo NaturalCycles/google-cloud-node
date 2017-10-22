@@ -18,14 +18,15 @@
  * @module logging-winston
  */
 
-'use strict';
+'use strict'
 
-var extend = require('extend');
-var is = require('is');
-var logging = require('@google-cloud/logging');
-var mapValues = require('lodash.mapvalues');
-var util = require('util');
-var winston = require('winston');
+var extend = require('extend')
+var is = require('is')
+var logging = require('@google-cloud/logging')
+var mapValues = require('lodash.mapvalues')
+var util = require('util')
+var winston = require('winston')
+var protoFiles = require('@naturalcycles/google-proto-files')
 
 /**
  * Map of npm output levels to Stackdriver Logging levels.
@@ -39,8 +40,8 @@ var NPM_LEVEL_NAME_TO_CODE = {
   info: 6,
   verbose: 7,
   debug: 7,
-  silly: 7
-};
+  silly: 7,
+}
 
 /**
  * Map of Stackdriver Logging levels.
@@ -56,13 +57,13 @@ var STACKDRIVER_LOGGING_LEVEL_CODE_TO_NAME = {
   4: 'warning',
   5: 'notice',
   6: 'info',
-  7: 'debug'
-};
+  7: 'debug',
+}
 
 /**
  * Log entry data key to allow users to indicate a trace for the request.
  */
-var LOGGING_TRACE_KEY = 'logging.googleapis.com/trace';
+var LOGGING_TRACE_KEY = 'logging.googleapis.com/trace'
 
 /**
  * This module provides support for streaming your winston logs to
@@ -116,29 +117,32 @@ var LOGGING_TRACE_KEY = 'logging.googleapis.com/trace';
  */
 function LoggingWinston(options) {
   if (!(this instanceof LoggingWinston)) {
-    return new LoggingWinston(options);
+    return new LoggingWinston(options)
   }
 
-  options = extend({
-    scopes: ['https://www.googleapis.com/auth/logging.write']
-  }, options);
+  options = extend(
+    {
+      scopes: ['https://www.googleapis.com/auth/logging.write'],
+    },
+    options,
+  )
 
-  var logName = options.logName || 'winston_log';
+  var logName = options.logName || 'winston_log'
 
   winston.Transport.call(this, {
     level: options.level,
-    name: logName
-  });
+    name: logName,
+  })
 
-  this.inspectMetadata_ = options.inspectMetadata === true;
-  this.levels_ = options.levels || NPM_LEVEL_NAME_TO_CODE;
-  this.log_ = logging(options).log(logName);
-  this.resource_ = options.resource;
-  this.serviceContext_ = options.serviceContext;
+  this.inspectMetadata_ = options.inspectMetadata === true
+  this.levels_ = options.levels || NPM_LEVEL_NAME_TO_CODE
+  this.log_ = logging(options).log(logName)
+  this.resource_ = options.resource
+  this.serviceContext_ = options.serviceContext
 }
 
-winston.transports.StackdriverLogging = LoggingWinston;
-util.inherits(LoggingWinston, winston.Transport);
+winston.transports.StackdriverLogging = LoggingWinston
+util.inherits(LoggingWinston, winston.Transport)
 
 /**
  * Gets the current fully qualified trace ID when available from the
@@ -146,22 +150,22 @@ util.inherits(LoggingWinston, winston.Transport);
  * "projects/[PROJECT-ID]/traces/[TRACE-ID]".
  */
 function getCurrentTraceFromAgent() {
-  var agent = global._google_trace_agent;
+  var agent = global._google_trace_agent
   if (!agent || !agent.getCurrentContextId || !agent.getWriterProjectId) {
-    return null;
+    return null
   }
 
-  var traceId = agent.getCurrentContextId();
+  var traceId = agent.getCurrentContextId()
   if (!traceId) {
-    return null;
+    return null
   }
 
-  var traceProjectId = agent.getWriterProjectId();
+  var traceProjectId = agent.getWriterProjectId()
   if (!traceProjectId) {
-    return null;
+    return null
   }
 
-  return `projects/${traceProjectId}/traces/${traceId}`;
+  return `projects/${traceProjectId}/traces/${traceId}`
 }
 
 /**
@@ -183,22 +187,22 @@ function getCurrentTraceFromAgent() {
  */
 LoggingWinston.prototype.log = function(levelName, msg, metadata, callback) {
   if (is.fn(metadata)) {
-    callback = metadata;
-    metadata = {};
+    callback = metadata
+    metadata = {}
   }
 
   if (this.levels_[levelName] === undefined) {
-    throw new Error('Unknown log level: ' + levelName);
+    throw new Error('Unknown log level: ' + levelName)
   }
 
-  var levelCode = this.levels_[levelName];
-  var stackdriverLevel = STACKDRIVER_LOGGING_LEVEL_CODE_TO_NAME[levelCode];
+  var levelCode = this.levels_[levelName]
+  var stackdriverLevel = STACKDRIVER_LOGGING_LEVEL_CODE_TO_NAME[levelCode]
 
   var entryMetadata = {
-    resource: this.resource_
-  };
+    resource: this.resource_,
+  }
 
-  var data = {};
+  var data = {}
 
   // Stackdriver Logs Viewer picks up the summary line from the `message`
   // property of the jsonPayload.
@@ -213,15 +217,16 @@ LoggingWinston.prototype.log = function(levelName, msg, metadata, callback) {
   // for more resource types.
   //
   if (metadata && metadata.stack) {
-    msg += (msg ? ' ' : '') + metadata.stack;
-    data.serviceContext = this.serviceContext_;
+    msg += (msg ? ' ' : '') + metadata.stack
+    data.serviceContext = this.serviceContext_
   }
 
-  data.message = msg;
+  data.message = msg
 
   if (is.object(metadata)) {
-    data.metadata =
-      this.inspectMetadata_ ? mapValues(metadata, util.inspect) : metadata;
+    data.metadata = this.inspectMetadata_
+      ? mapValues(metadata, util.inspect)
+      : metadata
 
     // If the metadata contains a httpRequest property, promote it to the entry
     // metadata. This allows Stackdriver to use request log formatting.
@@ -230,25 +235,50 @@ LoggingWinston.prototype.log = function(levelName, msg, metadata, callback) {
     // proto message, or the log entry would be rejected by the API. We no do
     // validation here.
     if (metadata.httpRequest) {
-      entryMetadata.httpRequest = metadata.httpRequest;
-      delete data.metadata.httpRequest;
+      entryMetadata.httpRequest = metadata.httpRequest
+      delete data.metadata.httpRequest
+    }
+
+    if(metadata.protoPayload) {
+      var protoPayload = extend(true, {}, metadata.protoPayload,{
+        resource: metadata.protoPayload.resource || data.message,
+      })
+
+      var root = protoFiles.loadSync('appengine/logging/v1/request_log.proto')
+      var Request = root.lookupType('RequestLog')
+      var err = Request.verify(protoPayload)
+
+      if(err) {
+        callback('protoPayload validation error:' + err)
+        return
+      }
+
+      // type: 'type.googleapis.com/google.appengine.logging.v1.RequestLog',
+      
+      var message = Request.create(protoPayload)
+      var buffer = Request.encode(message).finish()
+      entryMetadata.protoPayload = {
+        typeUrl: 'type.googleapis.com/google.appengine.logging.v1.RequestLog',
+        value: buffer
+      }
+      data = true
     }
   }
 
   if (metadata && metadata[LOGGING_TRACE_KEY]) {
-    entryMetadata.trace = metadata[LOGGING_TRACE_KEY];
-    delete data.metadata[LOGGING_TRACE_KEY];
+    entryMetadata.trace = metadata[LOGGING_TRACE_KEY]
+    delete data.metadata[LOGGING_TRACE_KEY]
   } else {
-    var trace = getCurrentTraceFromAgent();
+    var trace = getCurrentTraceFromAgent()
     if (trace) {
-      entryMetadata.trace = trace;
+      entryMetadata.trace = trace
     }
   }
 
-  var entry = this.log_.entry(entryMetadata, data);
-  this.log_[stackdriverLevel](entry, callback);
-};
+  var entry = this.log_.entry(entryMetadata, data)
+  this.log_[stackdriverLevel](entry, callback)
+}
 
-LoggingWinston.LOGGING_TRACE_KEY = LOGGING_TRACE_KEY;
+LoggingWinston.LOGGING_TRACE_KEY = LOGGING_TRACE_KEY
 
-module.exports = LoggingWinston;
+module.exports = LoggingWinston
